@@ -1,0 +1,122 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with academic level and role",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 255 },
+        "full_name": { "type": "string", "maxLength": 120 },
+        "academic_level": { "type": "string", "enum": ["ssc", "hsc", "honors", "all"] },
+        "institution": { "type": "string", "maxLength": 200 },
+        "avatar_url": { "type": "string", "maxLength": 500 },
+        "bio": { "type": "string", "maxLength": 500 },
+        "role": { "type": "string", "enum": ["student", "admin", "editor"] },
+        "created_at": { "type": "string", "maxLength": 64 },
+        "updated_at": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "email", "full_name", "academic_level", "role"]
+    },
+    "Bookmark": {
+      "title": "Bookmark",
+      "description": "Student bookmarked lesson",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "user_id": { "type": "string", "maxLength": 128 },
+        "lesson_id": { "type": "string", "maxLength": 128 },
+        "created_at": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "user_id", "lesson_id", "created_at"]
+    },
+    "StudentNote": {
+      "title": "StudentNote",
+      "description": "Student personal note on a chemistry lesson",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "user_id": { "type": "string", "maxLength": 128 },
+        "lesson_id": { "type": "string", "maxLength": 128 },
+        "note_text": { "type": "string", "maxLength": 5000 },
+        "updated_at": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "user_id", "lesson_id", "note_text", "updated_at"]
+    },
+    "LessonProgress": {
+      "title": "LessonProgress",
+      "description": "Student progress for a specific lesson",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "user_id": { "type": "string", "maxLength": 128 },
+        "lesson_id": { "type": "string", "maxLength": 128 },
+        "is_completed": { "type": "boolean" },
+        "progress_percent": { "type": "number" },
+        "last_read_at": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "user_id", "lesson_id", "is_completed", "progress_percent"]
+    },
+    "QuizAttempt": {
+      "title": "QuizAttempt",
+      "description": "Quiz examination attempt record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "user_id": { "type": "string", "maxLength": 128 },
+        "quiz_set_id": { "type": "string", "maxLength": 128 },
+        "started_at": { "type": "string", "maxLength": 64 },
+        "completed_at": { "type": "string", "maxLength": 64 },
+        "score": { "type": "number" },
+        "total_marks": { "type": "number" },
+        "correct_count": { "type": "number" },
+        "incorrect_count": { "type": "number" },
+        "unanswered_count": { "type": "number" }
+      },
+      "required": ["id", "user_id", "quiz_set_id", "score", "total_marks"]
+    },
+    "ContentReport": {
+      "title": "ContentReport",
+      "description": "User reported issue on lesson content",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "user_id": { "type": "string", "maxLength": 128 },
+        "user_name": { "type": "string", "maxLength": 120 },
+        "lesson_id": { "type": "string", "maxLength": 128 },
+        "lesson_title": { "type": "string", "maxLength": 200 },
+        "report_type": { "type": "string", "maxLength": 64 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "status": { "type": "string", "enum": ["pending", "resolved", "dismissed"] },
+        "created_at": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "lesson_id", "description", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles containing name, academic level, and personal settings"
+    },
+    "/users/{userId}/bookmarks/{bookmarkId}": {
+      "schema": "Bookmark",
+      "description": "User bookmarked lessons"
+    },
+    "/users/{userId}/notes/{noteId}": {
+      "schema": "StudentNote",
+      "description": "User personal chemistry study notes"
+    },
+    "/users/{userId}/progress/{lessonId}": {
+      "schema": "LessonProgress",
+      "description": "User completion and progress per lesson"
+    },
+    "/quiz_attempts/{attemptId}": {
+      "schema": "QuizAttempt",
+      "description": "Completed quiz attempt submissions"
+    },
+    "/content_reports/{reportId}": {
+      "schema": "ContentReport",
+      "description": "Lesson feedback and errata reports"
+    }
+  }
+}

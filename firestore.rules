@@ -1,0 +1,194 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Admin bootstrap check: admin collection doc or verified email check
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (request.auth.token.email == 'disharistudy@gmail.com' && request.auth.token.email_verified == true)
+      );
+    }
+
+    // Admins registry
+    match /admins/{adminId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // User Profile Validation
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['id', 'email', 'full_name', 'academic_level', 'role']) &&
+             data.keys().hasOnly(['id', 'email', 'full_name', 'academic_level', 'institution', 'avatar_url', 'bio', 'role', 'created_at', 'updated_at']) &&
+             data.id == userId &&
+             data.email is string && data.email.size() <= 255 &&
+             data.full_name is string && data.full_name.size() > 0 && data.full_name.size() <= 120 &&
+             data.academic_level in ['ssc', 'hsc', 'honors', 'all'] &&
+             (data.role in ['student', 'editor'] || isAdmin()) &&
+             (!('institution' in data) || (data.institution is string && data.institution.size() <= 200)) &&
+             (!('avatar_url' in data) || (data.avatar_url is string && data.avatar_url.size() <= 500)) &&
+             (!('bio' in data) || (data.bio is string && data.bio.size() <= 500));
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming(), userId);
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming(), userId) &&
+                    incoming().id == existing().id &&
+                    (incoming().role == existing().role || isAdmin());
+      allow delete: if isAdmin();
+
+      // Subcollection: Bookmarks
+      match /bookmarks/{bookmarkId} {
+        allow get: if isOwner(userId) && isValidId(bookmarkId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(bookmarkId) &&
+                         incoming().keys().hasAll(['id', 'user_id', 'lesson_id', 'created_at']) &&
+                         incoming().keys().hasOnly(['id', 'user_id', 'lesson_id', 'created_at']) &&
+                         incoming().user_id == userId &&
+                         incoming().id == bookmarkId &&
+                         incoming().lesson_id is string && incoming().lesson_id.size() <= 128;
+        allow update: if false; // Bookmarks are immutable
+        allow delete: if isOwner(userId) && isValidId(bookmarkId);
+      }
+
+      // Subcollection: Notes
+      match /notes/{noteId} {
+        allow get: if isOwner(userId) && isValidId(noteId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(noteId) &&
+                         incoming().keys().hasAll(['id', 'user_id', 'lesson_id', 'note_text', 'updated_at']) &&
+                         incoming().keys().hasOnly(['id', 'user_id', 'lesson_id', 'note_text', 'updated_at']) &&
+                         incoming().user_id == userId &&
+                         incoming().id == noteId &&
+                         incoming().lesson_id is string && incoming().lesson_id.size() <= 128 &&
+                         incoming().note_text is string && incoming().note_text.size() <= 5000;
+        allow update: if isOwner(userId) && isValidId(noteId) &&
+                         incoming().keys().hasAll(['id', 'user_id', 'lesson_id', 'note_text', 'updated_at']) &&
+                         incoming().keys().hasOnly(['id', 'user_id', 'lesson_id', 'note_text', 'updated_at']) &&
+                         incoming().user_id == existing().user_id &&
+                         incoming().id == existing().id &&
+                         incoming().lesson_id == existing().lesson_id &&
+                         incoming().note_text is string && incoming().note_text.size() <= 5000;
+        allow delete: if isOwner(userId) && isValidId(noteId);
+      }
+
+      // Subcollection: Lesson Progress
+      match /progress/{lessonId} {
+        allow get: if isOwner(userId) && isValidId(lessonId);
+        allow list: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidId(lessonId) &&
+                                 incoming().keys().hasAll(['id', 'user_id', 'lesson_id', 'is_completed', 'progress_percent']) &&
+                                 incoming().keys().hasOnly(['id', 'user_id', 'lesson_id', 'is_completed', 'progress_percent', 'last_read_at']) &&
+                                 incoming().user_id == userId &&
+                                 incoming().lesson_id == lessonId &&
+                                 incoming().is_completed is bool &&
+                                 incoming().progress_percent is number &&
+                                 incoming().progress_percent >= 0 && incoming().progress_percent <= 100;
+        allow delete: if isOwner(userId) && isValidId(lessonId);
+      }
+    }
+
+    // Quiz Attempts
+    match /quiz_attempts/{attemptId} {
+      allow get: if (isSignedIn() && existing().user_id == request.auth.uid) || isAdmin();
+      allow list: if (isSignedIn() && resource.data.user_id == request.auth.uid) || isAdmin();
+      allow create: if isSignedIn() && isValidId(attemptId) &&
+                       incoming().keys().hasAll(['id', 'user_id', 'quiz_set_id', 'score', 'total_marks']) &&
+                       incoming().keys().hasOnly(['id', 'user_id', 'quiz_set_id', 'started_at', 'completed_at', 'score', 'total_marks', 'correct_count', 'incorrect_count', 'unanswered_count', 'answers']) &&
+                       incoming().user_id == request.auth.uid &&
+                       incoming().id == attemptId &&
+                       incoming().score is number &&
+                       incoming().total_marks is number;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Content Reports (Students submit errata/feedback, Admins manage)
+    match /content_reports/{reportId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && isValidId(reportId) &&
+                       incoming().keys().hasAll(['id', 'lesson_id', 'description', 'status']) &&
+                       incoming().keys().hasOnly(['id', 'user_id', 'user_name', 'lesson_id', 'lesson_title', 'report_type', 'description', 'status', 'created_at']) &&
+                       incoming().id == reportId &&
+                       incoming().description is string && incoming().description.size() <= 2000 &&
+                       incoming().status in ['pending', 'resolved', 'dismissed'] &&
+                       (!('user_id' in incoming()) || incoming().user_id == request.auth.uid);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Public readable educational curriculum (managed by Admins)
+    match /courses/{courseId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /chapters/{chapterId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /lessons/{lessonId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /elements/{elementId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /reactions/{reactionId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /formulas/{formulaId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /quiz_sets/{quizId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /questions/{questionId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Test connection doc
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}

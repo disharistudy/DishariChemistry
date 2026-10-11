@@ -1,0 +1,6 @@
+{
+  "name": "Dishari Chemistry (দিশারী কেমিস্ট্রি)",
+  "description": "SSC, HSC ও Honors রসায়ন শিক্ষার্থীদের জন্য সমৃদ্ধ বাংলা লার্নিং প্ল্যাটফর্ম, ইন্টারঅ্যাক্টিভ পর্যায় সারণি, বিক্রিয়া ও ফর্মুলা লাইব্রেরি, কুইজ এবং স্টুডেন্ট ড্যাশবোর্ড।",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
